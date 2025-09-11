@@ -113,10 +113,7 @@ void addMovementPointsToCells()
         {
             for (int l = 0; l < LENGTH; l++)
             {
-                if (maze[f][w][l].cellType == ACTIVE_CELL ||
-                    maze[f][w][l].cellType == STAIR_CELL ||
-                    maze[f][w][l].cellType == POLE_CELL ||
-                    maze[f][w][l].cellType == STARTING_AREA)
+                if (!isBlockedCell(maze[f][w][l]))
                 {
                     if (total >= capacity)
                     {
@@ -128,7 +125,6 @@ void addMovementPointsToCells()
                             exit(1);
                         }
                     }
-
                     activeCellList[total++] = (CellCord){f, w, l};
                 }
             }
@@ -186,14 +182,6 @@ void addMovementPointsToCells()
 // ----------------------------------------SET UP BAWANA----------------------------------------
 void bawanaSetUp()
 {
-    // shuffle bawana cells array
-    for (int i = bawanaCellCount - 1; i > 0; i--)
-    {
-        int j = rand() % (i + 1);
-        struct BawanaCell tmp = bawanaCells[i];
-        bawanaCells[i] = bawanaCells[j];
-        bawanaCells[j] = tmp;
-    }
     for (int i = 0; i < bawanaCellCount; i++)
     {
         if (i < 2)
@@ -221,6 +209,14 @@ void bawanaSetUp()
             bawanaCells[i].type = RANDOM_CELL;
             bawanaCells[i].movementPoints = rand() % 91 + 10;
         }
+    }
+    // shuffle bawana cells array
+    for (int i = bawanaCellCount - 1; i > 0; i--)
+    {
+        int j = rand() % (i + 1);
+        struct BawanaCell tmp = bawanaCells[i];
+        bawanaCells[i] = bawanaCells[j];
+        bawanaCells[j] = tmp;
     }
 }
 

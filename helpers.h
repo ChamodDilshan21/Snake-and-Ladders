@@ -4,25 +4,12 @@
 #include "types.h"
 #include <stdlib.h>
 
-// ----------------------------------------GLOBAL VARIABLES---------------------------------------
-extern struct Cell maze[FLOORS][WIDTH][LENGTH];
-
-extern CellCord Flag;
-
-extern struct Stair *stairs;
-extern struct Pole *poles;
-extern struct Wall *walls;
-
-extern int stairsCount;
-extern int polesCount;
-extern int wallsCount;
-
 // ----------------------------------------VALIDATE DATA---------------------------------------
-bool isValidFloor(int floor) { return floor >= 0 && floor <= 2; }
+bool isValidFloor(int floor) { return floor >= 0 && floor < FLOORS; }
 
-bool isValidWidth(int width) { return width >= 0 && width <= 9; }
+bool isValidWidth(int width) { return width >= 0 && width < WIDTH; }
 
-bool isValidLength(int length) { return length >= 0 && length <= 24; }
+bool isValidLength(int length) { return length >= 0 && length < LENGTH; }
 
 bool isValidCordinates(CellCord cell)
 {
@@ -32,6 +19,8 @@ bool isValidCordinates(CellCord cell)
 bool isGameCell(CellCord cell) { return maze[cell.floor][cell.width][cell.length].cellType == ACTIVE_CELL; }
 
 bool isValidCell(CellCord cell) { return isValidCordinates(cell) && isGameCell(cell); }
+
+bool isBlockedCell(struct Cell cell) { return cell.cellType == WALL_CELL || cell.cellType == EMPTY_CELL; }
 
 bool isValidStair(struct Stair stair)
 {
@@ -99,72 +88,102 @@ bool isValidWall(struct Wall wall)
     return true;
 }
 
-// ----------------------------------------ADD OBJECTS TO MAZE----------------------------------------
-void addStairsToMaze()
+// ----------------------------------------STAIR DIRECTION CHANGE---------------------------------------
+
+void changeStairDirection()
 {
     for (int i = 0; i < stairsCount; i++)
     {
-        struct Stair tempStair = stairs[i];
-        maze[tempStair.startFloor][tempStair.startBlockWidth][tempStair.startBlockLength].cellType = STAIR_CELL;
-        maze[tempStair.startFloor][tempStair.startBlockWidth][tempStair.startBlockLength].cellTypeId = tempStair.stairId;
+        switch (rand() % 3)
+        {
+        case 1:
+            stairs[i].dir = UP;
+            break;
+        case 2:
+            stairs[i].dir = DOWN;
+            break;
 
-        maze[tempStair.endFloor][tempStair.endBlockWidth][tempStair.endBlockLength].cellType = STAIR_CELL;
-        maze[tempStair.endFloor][tempStair.endBlockWidth][tempStair.endBlockLength].cellTypeId = tempStair.stairId;
+        default:
+            stairs[i].dir = BI_DIR;
+            break;
+        }
     }
 }
 
-void addPolesToMaze()
+// ----------------------------------------DICE ROLLERS---------------------------------------
+int rollMovementDice()
 {
-    for (int i = 0; i < polesCount; i++)
+    return (rand() % 6) + 1;
+}
+
+Direction rollDirectionDice()
+{
+    int face = rand() % 6 + 1;
+    switch (face)
     {
-        struct Pole tempPole = poles[i];
-        if (abs(tempPole.endFloor - tempPole.startFloor) > 1)
-        {
-            for (int f = 0; f < FLOORS; f++)
-            {
-                maze[f][tempPole.widthCell][tempPole.lengthCell].cellType = POLE_CELL;
-                maze[f][tempPole.widthCell][tempPole.lengthCell].cellTypeId = tempPole.poleId;
-            }
-        }
-        else
-        {
-            maze[tempPole.startFloor][tempPole.widthCell][tempPole.lengthCell].cellType = POLE_CELL;
-            maze[tempPole.startFloor][tempPole.widthCell][tempPole.lengthCell].cellTypeId = tempPole.poleId;
-
-            maze[tempPole.endFloor][tempPole.widthCell][tempPole.lengthCell].cellType = POLE_CELL;
-            maze[tempPole.endFloor][tempPole.widthCell][tempPole.lengthCell].cellTypeId = tempPole.poleId;
-        }
+    case 2:
+        return NORTH;
+    case 3:
+        return EAST;
+    case 4:
+        return SOUTH;
+    case 5:
+        return WEST;
+    default:
+        return NO_CHANGE;
     }
 }
 
-void addWallstoMaze()
+// ----------------------------------------HELPERS---------------------------------------
+CellCord getNextCellCoord(CellCord current, Direction dir)
 {
-    for (int i = 0; i < wallsCount; i++)
+    CellCord new = current;
+    switch (dir)
     {
-        struct Wall tempWall = walls[i];
-
-        if (tempWall.startBlockWidth == tempWall.endBlockWidth)
-        {
-            int step = (tempWall.startBlockLength < tempWall.endBlockLength) ? 1 : -1;
-            for (int l = tempWall.startBlockLength; l != tempWall.endBlockLength + step; l += step)
-            {
-                maze[tempWall.floor][tempWall.startBlockWidth][l].cellType = WALL_CELL;
-            }
-        }
-        else
-        {
-            int step = (tempWall.startBlockWidth < tempWall.endBlockWidth) ? 1 : -1;
-            for (int w = tempWall.startBlockWidth; w != tempWall.endBlockWidth + step; w += step)
-            {
-                maze[tempWall.floor][w][tempWall.startBlockLength].cellType = WALL_CELL;
-            }
-        }
+    case NORTH:
+        new.width -= 1;
+        break;
+    case SOUTH:
+        new.width += 1;
+        break;
+    case EAST:
+        new.length += 1;
+        break;
+    case WEST:
+        new.length -= 1;
+        break;
+    default:
+        break;
     }
+    return new;
 }
 
-void addFlagToMaze()
+struct Cell getNextCell(CellCord nextCell)
 {
-    maze[Flag.floor][Flag.width][Flag.length].cellType = FLAG_CELL;
+    return maze[nextCell.floor][nextCell.width][nextCell.length];
+}
+
+bool isMovePossible(CellCord current, Direction dir, int steps)
+{
+    for (int i = 0; i < steps; i++)
+    {
+        CellCord nextCoord = getNextCellCoord(current, dir);
+        if (!isValidCordinates(nextCoord))
+        {
+            return false;
+        }
+        struct Cell nextCell = getNextCell(nextCoord);
+        if (isBlockedCell(nextCell))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+struct BawanaCell getRandomBawanaCell()
+{
+    return bawanaCells[rand() % 12];
 }
 
 #endif

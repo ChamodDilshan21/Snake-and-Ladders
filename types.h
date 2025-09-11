@@ -30,6 +30,41 @@ typedef enum
     MP_MULTIPLY
 } MPEffectType;
 
+typedef enum
+{
+    NORTH,
+    EAST,
+    SOUTH,
+    WEST,
+    NO_CHANGE
+} Direction;
+
+typedef enum
+{
+    STARTING_AREA,
+    IN_MAZE,
+    POISONED,
+    DISORIENTED,
+    TRIGGERED,
+    HAPPY
+} PlayerStatus;
+
+typedef enum
+{
+    UP,
+    DOWN,
+    BI_DIR
+} StairDirection;
+
+typedef enum
+{
+    POISONED_CELL,
+    DISORIENTED_CELL,
+    TRIGGERED_CELL,
+    HAPPY_CELL,
+    RANDOM_CELL
+} BawanaCellType;
+
 // --------------------structs--------------------
 typedef struct
 {
@@ -55,6 +90,7 @@ struct Stair
     int endFloor;
     int endBlockWidth;
     int endBlockLength;
+    StairDirection dir;
 };
 
 struct Pole
@@ -74,5 +110,40 @@ struct Wall
     int endBlockWidth;
     int endBlockLength;
 };
+
+typedef struct
+{
+    char name;
+    CellCord currentPos;
+    CellCord entryPos;
+    Direction dir;
+    int movementPoints;
+    int throwsCount;
+    PlayerStatus status;
+    int statusDuration;
+} Player;
+
+struct BawanaCell
+{
+    int BawanaCellId;
+    BawanaCellType type;
+    int movementPoints;
+};
+
+// ----------------------------------------GLOBAL VARIABLES---------------------------------------
+extern struct Cell maze[FLOORS][WIDTH][LENGTH];
+
+extern CellCord Flag;
+
+extern struct Stair *stairs;
+extern struct Pole *poles;
+extern struct Wall *walls;
+extern struct BawanaCell *bawanaCells;
+
+extern int stairsCount;
+extern int polesCount;
+extern int wallsCount;
+extern int bawanaCellCount;
+
 
 #endif

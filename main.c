@@ -1,6 +1,6 @@
-#include "functions.h"
+#include "maze.h"
 
-// --------------------GLOBAL VARIABLES--------------------
+// ----------------------------------------GLOBAL VARIABLES---------------------------------------
 struct Cell maze[FLOORS][WIDTH][LENGTH];
 
 CellCord Flag;
@@ -8,11 +8,12 @@ CellCord Flag;
 struct Stair *stairs = NULL;
 struct Pole *poles = NULL;
 struct Wall *walls = NULL;
+struct BawanaCell *bawanaCells = NULL;
 
 int stairsCount = 0;
 int polesCount = 0;
 int wallsCount = 0;
-int seed = 0;
+int bawanaCellCount = 0;
 
 void printFloors()
 {
@@ -65,8 +66,7 @@ void printFloors()
 int main()
 {
     printf("Game started!..\n");
-    initMaze(maze);
-    loadFiles();
+    intializeMaze();
     printFloors();
     return 0;
 }

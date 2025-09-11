@@ -1,5 +1,5 @@
-#ifndef FUNCTIONS_H
-#define FUNCTIONS_H
+#ifndef MAZE_H
+#define MAZE_H
 
 #include "helpers.h"
 #include <stdio.h>
@@ -40,7 +40,7 @@ void setUpFloors(struct Cell maze[FLOORS][WIDTH][LENGTH])
     }
     // marking bawana
     int cap = 12;
-    bawanaCells = malloc(cap * sizeof(struct BawanaCell));
+    bawanaCells = (struct BawanaCell *)malloc(cap * sizeof(struct BawanaCell));
     if (!bawanaCells)
     {
         fprintf(stderr, "Error: Memory allocation failed\n");
@@ -58,7 +58,7 @@ void setUpFloors(struct Cell maze[FLOORS][WIDTH][LENGTH])
             if (bawanaCellCount >= 12)
             {
                 cap *= 2;
-                bawanaCells = realloc(bawanaCells, cap * sizeof(struct BawanaCell));
+                bawanaCells = (struct BawanaCell *)realloc(bawanaCells, cap * sizeof(struct BawanaCell));
                 if (!bawanaCells)
                 {
                     fprintf(stderr, "Error: Memory reallocation failed\n");
@@ -105,7 +105,7 @@ void addMovementPointsToCells()
 {
     int total = 0;
     int capacity = 100;
-    CellCord *activeCellList = malloc(capacity * sizeof(CellCord));
+    CellCord *activeCellList = (CellCord *)malloc(capacity * sizeof(CellCord));
 
     for (int f = 0; f < FLOORS; f++)
     {
@@ -121,7 +121,7 @@ void addMovementPointsToCells()
                     if (total >= capacity)
                     {
                         capacity *= 2;
-                        CellCord *temp = realloc(activeCellList, capacity * sizeof(CellCord));
+                        CellCord *temp = (CellCord *)realloc(activeCellList, capacity * sizeof(CellCord));
                         if (temp == NULL)
                         {
                             fprintf(stderr, "Error: Memory reallocation failed\n");

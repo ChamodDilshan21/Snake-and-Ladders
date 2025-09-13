@@ -2,7 +2,6 @@
 #define MAZE_H
 
 #include "helpers.h"
-#include <stdio.h>
 
 // ----------------------------------------INITIALIZE MAZE FLOORS----------------------------------------
 void setUpFloors(struct Cell maze[FLOORS][WIDTH][LENGTH])
@@ -40,10 +39,11 @@ void setUpFloors(struct Cell maze[FLOORS][WIDTH][LENGTH])
     }
     // marking bawana
     int cap = 12;
+    int count = 0;
     bawanaCells = (struct BawanaCell *)malloc(cap * sizeof(struct BawanaCell));
     if (!bawanaCells)
     {
-        fprintf(stderr, "Error: Memory allocation failed\n");
+        printf("Error: Memory allocation failed.\n");
         exit(1);
     }
     for (int w = 6; w <= 9; w++)
@@ -55,22 +55,23 @@ void setUpFloors(struct Cell maze[FLOORS][WIDTH][LENGTH])
                 maze[0][w][l].cellType = WALL_CELL;
                 continue;
             }
-            if (bawanaCellCount >= 12)
+            if (count >= 12)
             {
                 cap *= 2;
                 bawanaCells = (struct BawanaCell *)realloc(bawanaCells, cap * sizeof(struct BawanaCell));
                 if (!bawanaCells)
                 {
-                    fprintf(stderr, "Error: Memory reallocation failed\n");
+                    printf("Error: Memory reallocation failed.\n");
                     exit(1);
                 }
             }
             maze[0][w][l].cellType = BAWANA_CELL;
-            maze[0][w][l].cellTypeId = bawanaCellCount;
-            bawanaCells[bawanaCellCount] = (struct BawanaCell){bawanaCellCount};
-            bawanaCellCount++;
+            maze[0][w][l].cellTypeId = count;
+            bawanaCells[count] = (struct BawanaCell){(CellCord){0,w,l},RANDOM_CELL,0};
+            count++;
         }
     }
+    no_BawanaCells = count;
     // marking bawana entry
     maze[0][9][19].cellType = BAWANA_ENTRY;
 
@@ -106,6 +107,11 @@ void addMovementPointsToCells()
     int total = 0;
     int capacity = 100;
     CellCord *activeCellList = (CellCord *)malloc(capacity * sizeof(CellCord));
+    if (activeCellList == NULL)
+    {
+        printf("Error: Memory allocation failed.\n");
+        exit(1);
+    }
 
     for (int f = 0; f < FLOORS; f++)
     {
@@ -113,7 +119,7 @@ void addMovementPointsToCells()
         {
             for (int l = 0; l < LENGTH; l++)
             {
-                if (!isBlockedCell(maze[f][w][l]))
+                if (!isBlockedCell((CellCord){f, w, l}))
                 {
                     if (total >= capacity)
                     {
@@ -121,9 +127,10 @@ void addMovementPointsToCells()
                         CellCord *temp = (CellCord *)realloc(activeCellList, capacity * sizeof(CellCord));
                         if (temp == NULL)
                         {
-                            fprintf(stderr, "Error: Memory reallocation failed\n");
+                            printf("Error: Memory reallocation failed.\n");
                             exit(1);
                         }
+                        activeCellList = temp;
                     }
                     activeCellList[total++] = (CellCord){f, w, l};
                 }
@@ -182,7 +189,7 @@ void addMovementPointsToCells()
 // ----------------------------------------SET UP BAWANA----------------------------------------
 void bawanaSetUp()
 {
-    for (int i = 0; i < bawanaCellCount; i++)
+    for (int i = 0; i < no_BawanaCells; i++)
     {
         if (i < 2)
         {
@@ -210,14 +217,6 @@ void bawanaSetUp()
             bawanaCells[i].movementPoints = rand() % 91 + 10;
         }
     }
-    // shuffle bawana cells array
-    for (int i = bawanaCellCount - 1; i > 0; i--)
-    {
-        int j = rand() % (i + 1);
-        struct BawanaCell tmp = bawanaCells[i];
-        bawanaCells[i] = bawanaCells[j];
-        bawanaCells[j] = tmp;
-    }
 }
 
 // ----------------------------------------LOAD FILES----------------------------------------
@@ -226,7 +225,7 @@ void loadSeed()
     FILE *file = fopen("seed.txt", "r");
     if (!file)
     {
-        fprintf(stderr, "Error: opening seed.txt... using default value(1) as seed\n");
+        fprintf(stderr, "Error: opening seed.txt... using default value(1) as seed.\n");
         srand(1);
         return;
     }
@@ -241,7 +240,7 @@ void loadStairs()
     FILE *file = fopen("stairs.txt", "r");
     if (!file)
     {
-        fprintf(stderr, "Error: opening stairs.txt\n");
+        printf("Error: opening stairs.txt\n");
         exit(1);
     }
 
@@ -250,7 +249,7 @@ void loadStairs()
     stairs = (struct Stair *)malloc(capacity * sizeof(struct Stair));
     if (!stairs)
     {
-        fprintf(stderr, "Error: Memory allocation failed\n");
+        printf("Error: Memory allocation failed.\n");
         exit(1);
     }
 
@@ -265,7 +264,7 @@ void loadStairs()
     {
         if (!isValidStair(tempStair))
         {
-            printf("Error: Invalid coordinates for a stair detected from the stairs.txt...skipped that coordinates \n");
+            fprintf(stderr, "Error: Invalid coordinates for a stair detected from the stairs.txt...skipped that coordinates.\n");
             continue;
         }
         tempStair.stairId = count;
@@ -277,7 +276,7 @@ void loadStairs()
             stairs = (struct Stair *)realloc(stairs, capacity * sizeof(struct Stair));
             if (!stairs)
             {
-                fprintf(stderr, "Error: Memory reallocation failed \n");
+                printf("Error: Memory reallocation failed.\n");
                 exit(1);
             }
         }
@@ -285,10 +284,10 @@ void loadStairs()
     fclose(file);
     if (count == 0)
     {
-        fprintf(stderr, "Error: No valid stairs were loaded from the file. Quitting Game....\n");
+        printf("Error: No valid stairs were loaded from the file. Quitting Game....\n");
         exit(1);
     }
-    stairsCount = count;
+    no_Stairs = count;
 }
 
 void loadPoles()
@@ -296,7 +295,7 @@ void loadPoles()
     FILE *file = fopen("poles.txt", "r");
     if (!file)
     {
-        fprintf(stderr, "Error: opening poles.txt\n");
+        printf("Error: opening poles.txt\n");
         exit(1);
     }
 
@@ -305,7 +304,7 @@ void loadPoles()
     poles = (struct Pole *)malloc(capacity * sizeof(struct Pole));
     if (!poles)
     {
-        fprintf(stderr, "Error: Memory allocation failed\n");
+        printf("Error: Memory allocation failed.\n");
         exit(1);
     }
 
@@ -318,7 +317,7 @@ void loadPoles()
     {
         if (!isValidPole(tempPole))
         {
-            printf("Error: Invalid coordinates for a pole detected from the poles.txt...skipped that coordinates \n");
+            fprintf(stderr, "Error: Invalid coordinates for a pole detected from the poles.txt...skipped that coordinates.\n");
             continue;
         }
         tempPole.poleId = count;
@@ -329,7 +328,7 @@ void loadPoles()
             poles = (struct Pole *)realloc(poles, capacity * sizeof(struct Pole));
             if (!poles)
             {
-                fprintf(stderr, "Error: Memory reallocation failed \n");
+                printf("Error: Memory reallocation failed.\n");
                 exit(1);
             }
         }
@@ -337,10 +336,10 @@ void loadPoles()
     fclose(file);
     if (count == 0)
     {
-        fprintf(stderr, "Error: No valid poles were loaded from the file. Quitting Game....\n");
+        printf("Error: No valid poles were loaded from the file. Quitting Game....\n");
         exit(1);
     }
-    polesCount = count;
+    no_Poles = count;
 }
 
 void loadFlag()
@@ -348,27 +347,44 @@ void loadFlag()
     FILE *file = fopen("flag.txt", "r");
     if (!file)
     {
-        fprintf(stderr, "Error: opening flag.txt\n");
+        printf("Error: opening flag.txt\n");
         exit(1);
     }
+
     CellCord flagPosition;
     if (fscanf(file, " [%d, %d, %d] ", &flagPosition.floor, &flagPosition.width, &flagPosition.length) != 3)
     {
-        fprintf(stderr, "Error: Invalid flag format in flag.txt\n");
+        printf("Error: Invalid flag format in flag.txt\n");
         fclose(file);
         exit(1);
     }
-    if (!isValidCell(flagPosition))
+
+    if (!isValidCordinates(flagPosition) || maze[flagPosition.floor][flagPosition.width][flagPosition.length].cellType != ACTIVE_CELL)
     {
-        printf("Error: Invalid Flag location....flag location set to [2, 0, 8]\n");
-        Flag.floor = 2;
-        Flag.width = 0;
-        Flag.length = 8;
+        printf("Error: Invalid flag location. Quitting Game....\n");
+        fclose(file);
+        exit(1);
     }
-    else
+
+    if (flagPosition.floor > 0)
     {
-        Flag = flagPosition;
+        bool isFlagReachable = false;
+        for (int i = 0; i < no_Stairs; i++)
+        {
+            if (stairs[i].endFloor == flagPosition.floor)
+            {
+                isFlagReachable = true;
+                break;
+            }
+        }
+        if (!isFlagReachable)
+        {
+            printf("Error: Invalid flag location. Quitting Game....\n");
+            fclose(file);
+            exit(1);
+        }
     }
+    Flag = flagPosition;
     fclose(file);
 }
 
@@ -377,7 +393,7 @@ void loadWalls()
     FILE *file = fopen("walls.txt", "r");
     if (!file)
     {
-        fprintf(stderr, "Error: opening walls.txt\n");
+        printf("Error: opening walls.txt\n");
         exit(1);
     }
 
@@ -386,7 +402,7 @@ void loadWalls()
     walls = (struct Wall *)malloc(capacity * sizeof(struct Wall));
     if (!walls)
     {
-        fprintf(stderr, "Error: Memory allocation failed\n");
+        printf("Error: Memory allocation failed.\n");
         exit(1);
     }
 
@@ -400,7 +416,7 @@ void loadWalls()
     {
         if (!isValidWall(tempWall))
         {
-            printf("Error: Invalid coordinates for a wall detected from the walls.txt...skipped that coordinates \n");
+            fprintf(stderr, "Error: Invalid coordinates for a wall detected from the walls.txt...skipped that coordinates.\n");
             continue;
         }
         walls[count++] = tempWall;
@@ -410,7 +426,7 @@ void loadWalls()
             walls = (struct Wall *)realloc(walls, capacity * sizeof(struct Wall));
             if (!walls)
             {
-                fprintf(stderr, "Error: Memory reallocation failed \n");
+                printf("Error: Memory reallocation failed.\n");
                 exit(1);
             }
         }
@@ -418,16 +434,16 @@ void loadWalls()
     fclose(file);
     if (count == 0)
     {
-        fprintf(stderr, "Error: No valid walls were loaded from the file. Quitting Game....\n");
+        printf("Error: No valid walls were loaded from the file. Quitting Game....\n");
         exit(1);
     }
-    wallsCount = count;
+    no_Walls = count;
 }
 
 // ----------------------------------------ADD OBJECTS TO MAZE----------------------------------------
 void addStairsToMaze()
 {
-    for (int i = 0; i < stairsCount; i++)
+    for (int i = 0; i < no_Stairs; i++)
     {
         struct Stair tempStair = stairs[i];
         maze[tempStair.startFloor][tempStair.startBlockWidth][tempStair.startBlockLength].cellType = STAIR_CELL;
@@ -440,7 +456,7 @@ void addStairsToMaze()
 
 void addPolesToMaze()
 {
-    for (int i = 0; i < polesCount; i++)
+    for (int i = 0; i < no_Poles; i++)
     {
         struct Pole tempPole = poles[i];
         if (abs(tempPole.endFloor - tempPole.startFloor) > 1)
@@ -464,7 +480,7 @@ void addPolesToMaze()
 
 void addWallstoMaze()
 {
-    for (int i = 0; i < wallsCount; i++)
+    for (int i = 0; i < no_Walls; i++)
     {
         struct Wall tempWall = walls[i];
 
@@ -495,6 +511,7 @@ void addFlagToMaze()
 // ----------------------------------------CALLING FUNCTIONS----------------------------------------
 void loadFiles()
 {
+    loadSeed();
     loadWalls();
     loadStairs();
     loadPoles();

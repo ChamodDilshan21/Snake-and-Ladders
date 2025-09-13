@@ -2,9 +2,9 @@
 #define HELPERS_H
 
 #include "types.h"
-#include <stdlib.h>
 
-// ----------------------------------------VALIDATE DATA---------------------------------------
+// ----------------------------------------VALIDATION SUPPORT---------------------------------------
+
 bool isValidFloor(int floor) { return floor >= 0 && floor < FLOORS; }
 
 bool isValidWidth(int width) { return width >= 0 && width < WIDTH; }
@@ -16,12 +16,42 @@ bool isValidCordinates(CellCord cell)
     return isValidFloor(cell.floor) && isValidWidth(cell.width) && isValidLength(cell.length);
 }
 
-bool isGameCell(CellCord cell) { return maze[cell.floor][cell.width][cell.length].cellType == ACTIVE_CELL; }
+// check two location are the same
+bool isSameCord(CellCord c1, CellCord c2)
+{
+    return c1.floor == c2.floor && c1.width == c2.width && c1.length == c2.length;
+}
 
-bool isValidCell(CellCord cell) { return isValidCordinates(cell) && isGameCell(cell); }
+// check if cell doesn't have any object currently
+bool isVacantCell(CellCord cell)
+{
+    if (maze[cell.floor][cell.width][cell.length].cellType == STARTING_AREA_CELL)
+    {
+        for (int i = 0; i < sizeof(specialCells) / sizeof(specialCells[0]); i++)
+        {
+            if (isSameCord(cell, specialCells[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+    return maze[cell.floor][cell.width][cell.length].cellType == ACTIVE_CELL;
+}
 
-bool isBlockedCell(struct Cell cell) { return cell.cellType == WALL_CELL || cell.cellType == EMPTY_CELL; }
+// check if cell is within booundires and vacant
+bool isValidCell(CellCord cell) { return isValidCordinates(cell) && isVacantCell(cell); }
 
+// check for walls and boundries
+bool isBlockedCell(CellCord cell)
+{
+    return maze[cell.floor][cell.width][cell.length].cellType == WALL_CELL ||
+           maze[cell.floor][cell.width][cell.length].cellType == EMPTY_CELL;
+}
+
+bool isStartingAreaCell(CellCord cell) { return maze[cell.floor][cell.width][cell.length].cellType == STARTING_AREA_CELL; }
+
+// check if stair is valid
 bool isValidStair(struct Stair stair)
 {
     CellCord startCell = {stair.startFloor, stair.startBlockWidth, stair.startBlockLength};
@@ -29,18 +59,20 @@ bool isValidStair(struct Stair stair)
 
     return isValidCell(startCell) &&
            isValidCell(endCell) &&
-           (startCell.floor + 1 == endCell.floor) &&
-           !(startCell.width == endCell.width && startCell.length == endCell.length);
+           (startCell.floor + 1 == endCell.floor) && // stair should be from a lower floor to a upper floor and cannot go through floors
+           !(startCell.width == endCell.width && startCell.length == endCell.length); // stairs cannot be vertical
 }
 
+// check if pole is valid
 bool isValidPole(struct Pole pole)
 {
     CellCord startCell = {pole.startFloor, pole.widthCell, pole.lengthCell};
     CellCord endCell = {pole.endFloor, pole.widthCell, pole.lengthCell};
 
-    return isValidCell(startCell) && isValidCell(endCell) && (startCell.floor != endCell.floor);
+    return isValidCell(startCell) && isValidCell(endCell) && (startCell.floor < endCell.floor);
 }
 
+// check if stair is valid
 bool isValidWall(struct Wall wall)
 {
     if (!isValidFloor(wall.floor) ||
@@ -52,70 +84,95 @@ bool isValidWall(struct Wall wall)
         return false;
     }
 
-    bool isVertical = wall.startBlockLength == wall.endBlockLength;
-    bool isHorizontal = wall.startBlockWidth == wall.endBlockWidth;
+    bool isVertical = wall.startBlockLength == wall.endBlockLength; // vertical wall
+    bool isHorizontal = wall.startBlockWidth == wall.endBlockWidth; // horizontal wall
 
+    // walls cannot diagonal
     if (!isVertical && !isHorizontal)
     {
         return false;
     }
 
-    int wallSize = isHorizontal ? abs(wall.startBlockLength - wall.endBlockLength) : abs(wall.startBlockWidth - wall.endBlockWidth);
+    // calc wall size(cells)
+    int wallWidth = abs(wall.startBlockWidth - wall.endBlockWidth) + 1;
+    int wallLength = abs(wall.startBlockLength - wall.endBlockLength) + 1;
+
     if (isHorizontal)
     {
         int l = wall.startBlockLength < wall.endBlockLength ? wall.startBlockLength : wall.endBlockLength;
-        for (int i = 0; i <= wallSize; i++)
+
+        //check wall is contiguous and do not have objects(stairs/poles/flag) in middle
+        for (int i = 0; i <= wallLength; i++)
         {
             CellCord cell = {wall.floor, wall.startBlockWidth, l++};
-            if (!isGameCell(cell))
+            if (maze[cell.floor][cell.width][cell.length].cellType != ACTIVE_CELL)
             {
                 return false;
             }
         }
     }
-    else
+    else if (isVertical)
     {
         int w = wall.startBlockWidth < wall.endBlockWidth ? wall.startBlockWidth : wall.endBlockWidth;
-        for (int i = 0; i <= wallSize; i++)
+
+        //check wall is contiguous and do not have objects(stairs/poles/flag) in middle
+        for (int i = 0; i <= wallWidth; i++)
         {
             CellCord cell = {wall.floor, w++, wall.startBlockLength};
-            if (!isGameCell(cell))
+            if (maze[cell.floor][cell.width][cell.length].cellType != ACTIVE_CELL)
             {
                 return false;
             }
         }
     }
+
+    // check if wall is a entire barrier (from one end to other)
+    if (wall.floor == 1)
+    {
+        if (wall.startBlockWidth < 6)
+        {
+            if (isHorizontal)
+            {
+                return wallLength < 8;
+            }
+        }
+        else if (wall.startBlockLength > 7 && wall.startBlockLength < 17)
+        {
+            if (isVertical)
+            {
+                return wallWidth < 4;
+            }
+        }
+    }
+    else if (wall.floor == 2)
+    {
+        if (isHorizontal)
+        {
+            return wallLength < 9;
+        }
+    }
+
+    if (isHorizontal)
+    {
+        return wallLength < LENGTH;
+    }
+    else if (isVertical)
+    {
+        return wallWidth < WIDTH;
+    }
+
     return true;
 }
 
-// ----------------------------------------STAIR DIRECTION CHANGE---------------------------------------
+// ---------------------------------------GAME SUPPORT---------------------------------------
 
-void changeStairDirection()
-{
-    for (int i = 0; i < stairsCount; i++)
-    {
-        switch (rand() % 3)
-        {
-        case 1:
-            stairs[i].dir = UP;
-            break;
-        case 2:
-            stairs[i].dir = DOWN;
-            break;
-
-        default:
-            stairs[i].dir = BI_DIR;
-            break;
-        }
-    }
-}
-
-// ----------------------------------------DICE ROLLERS---------------------------------------
+//roll movement dice
 int rollMovementDice()
 {
     return (rand() % 6) + 1;
 }
 
+//roll direction dice
 Direction rollDirectionDice()
 {
     int face = rand() % 6 + 1;
@@ -134,7 +191,38 @@ Direction rollDirectionDice()
     }
 }
 
-// ----------------------------------------HELPERS---------------------------------------
+// change stair direction randomly
+void changeStairDirection()
+{
+    for (int i = 0; i < no_Stairs; i++)
+    {
+        switch (rand() % 3)
+        {
+        case 1:
+            stairs[i].dir = UP;
+            break;
+        case 2:
+            stairs[i].dir = DOWN;
+            break;
+
+        default:
+            stairs[i].dir = BI_DIR;
+            break;
+        }
+    }
+}
+
+// format cell coordinate to string -> format - [0, 0, ,0]
+const char *cordToString(CellCord c)
+{
+    static char buffer[20];
+    snprintf(buffer, sizeof(buffer), "[%d, %d, %d]", c.floor, c.width, c.length);
+    return buffer;
+}
+
+// ----------------------------------------PLAYER MOVE SUPPORT---------------------------------------
+
+// find the coordinates of the next cell
 CellCord getNextCellCoord(CellCord current, Direction dir)
 {
     CellCord new = current;
@@ -158,32 +246,38 @@ CellCord getNextCellCoord(CellCord current, Direction dir)
     return new;
 }
 
-struct Cell getNextCell(CellCord nextCell)
-{
-    return maze[nextCell.floor][nextCell.width][nextCell.length];
-}
+// find the next cell
+struct Cell getNextCell(CellCord nextCell) { return maze[nextCell.floor][nextCell.width][nextCell.length]; }
 
-bool isMovePossible(CellCord current, Direction dir, int steps)
+// get a random bawana cell
+struct BawanaCell getRandomBawanaCell() { return bawanaCells[rand() % 12]; }
+
+// check if player has captured a another
+void hasCapturedPlayer(char capturedBy, CellCord cell)
 {
-    for (int i = 0; i < steps; i++)
+    for (int i = 0; i < NO_PLAYERS; i++)
     {
-        CellCord nextCoord = getNextCellCoord(current, dir);
-        if (!isValidCordinates(nextCoord))
+        if (players[i].name != capturedBy && isSameCord(players[i].currentCell, cell))
         {
-            return false;
-        }
-        struct Cell nextCell = getNextCell(nextCoord);
-        if (isBlockedCell(nextCell))
-        {
-            return false;
+            players[i].currentCell = players[i].startCell;
+            printf("%c has been captured by %c at %s. Player %c has send to his starting location in starting area.\n",
+                   players[i].name, capturedBy, cordToString(cell), players[i].name);
+            return;
         }
     }
-    return true;
 }
 
-struct BawanaCell getRandomBawanaCell()
+// check if player has returned to starting area
+bool backToStartingArea(Player *p)
 {
-    return bawanaCells[rand() % 12];
+    if (getNextCell(p->currentCell).cellType == STARTING_AREA_CELL)
+    {
+        p->currentCell = p->startCell;
+        p->dir = p->startDir;
+        p->status = STARTING_AREA;
+        return true;
+    }
+    return false;
 }
 
 #endif

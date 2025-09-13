@@ -1,19 +1,36 @@
 #include "maze.h"
+#include "play.h"
 
 // ----------------------------------------GLOBAL VARIABLES---------------------------------------
+
+// constants
+const CellCord BawanaEntry = {0, 9, 19};
+
+const CellCord specialCells[] = {BawanaEntry, {0, 6, 12}, {0, 5, 12}, {0, 9, 8}, {0, 9, 7}, {0, 9, 16}, {0, 9, 17}};
+
+const char *stringDirections[] = {"NORTH", "EAST", "SOUTH", "WEST", "EMPTY"};
+
+const char *stringBawanaEffects[] = {"POISONED", "DISORIENTED", "TRIGGERED", "HAPPY", "RANDOM"};
+
+// arrays
 struct Cell maze[FLOORS][WIDTH][LENGTH];
+Player players[NO_PLAYERS];
 
 CellCord Flag;
 
+// array pointers
 struct Stair *stairs = NULL;
 struct Pole *poles = NULL;
 struct Wall *walls = NULL;
 struct BawanaCell *bawanaCells = NULL;
 
-int stairsCount = 0;
-int polesCount = 0;
-int wallsCount = 0;
-int bawanaCellCount = 0;
+// counters
+int no_Stairs = 0;
+int no_Poles = 0;
+int no_Walls = 0;
+int no_BawanaCells = 0;
+
+int gameRound = 0;
 
 void printFloors()
 {
@@ -114,9 +131,43 @@ void printFloors()
 // --------------------MAIN--------------------
 int main()
 {
-    printf("Game started!..\n");
-    loadSeed();
+    freopen("log.txt", "a", stderr);
+
+    printf("\n   ___   _   __  __ ___   ___ ___ ___ ___ _  _ ___ _ \r\n  / __| /_\\ |  \\/  | __| | _ ) __/ __|_ _| \\| / __| |\r\n | (_ |/ _ \\| |\\/| | _|  | _ \\ _| (_ || || .` \\__ \\_|\r\n  \\___/_/ \\_\\_|  |_|___| |___/___\\___|___|_|\\_|___(_)\r\n                                                     \n");
     intializeMaze();
+    initPlayers();
+
     printFloors();
+
+    while (true)
+    {
+        printf("\n \tRound %d \n", gameRound + 1);
+        printf(" ===================== \n");
+        for (int i = 0; i < NO_PLAYERS; i++)
+        {
+            printf("\n----%c's turn:----\n", players[i].name);
+            // printf("----------- \n");
+            playerTurn(&players[i]);
+        }
+
+        gameRound++;
+        if (gameRound % 5 == 0)
+        {
+            printf("\n \\\\---Five rounds has passed. The direction of the stairs change randomly.---\\\\ \n");
+            changeStairDirection();
+        }
+
+        // if (gameRound == 100)
+        // {
+        //     exit(0);
+        // }
+    }
+
+    // \t -> skip 8 chars
+    // printf("\n \t\tRound %d \n", gameRound + 1);
+    // printf(" \t===================== \n\n");
+    // printf("%c's turn:\n", players[0].name);
+    // printf("----------- \n\n");
+
     return 0;
 }

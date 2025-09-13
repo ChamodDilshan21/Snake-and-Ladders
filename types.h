@@ -1,12 +1,15 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 
 // --------------------constants--------------------
 #define FLOORS 3
 #define WIDTH 10
 #define LENGTH 25
+#define NO_PLAYERS 3
 
 // --------------------enums--------------------
 typedef enum
@@ -45,8 +48,7 @@ typedef enum
     IN_MAZE,
     POISONED,
     DISORIENTED,
-    TRIGGERED,
-    HAPPY
+    TRIGGERED
 } PlayerStatus;
 
 typedef enum
@@ -111,39 +113,64 @@ struct Wall
     int endBlockLength;
 };
 
-typedef struct
-{
-    char name;
-    CellCord currentPos;
-    CellCord entryPos;
-    Direction dir;
-    int movementPoints;
-    int throwsCount;
-    PlayerStatus status;
-    int statusDuration;
-} Player;
-
 struct BawanaCell
 {
-    int BawanaCellId;
+    CellCord cellCoord;
     BawanaCellType type;
     int movementPoints;
 };
 
+typedef struct
+{
+    char name;
+    CellCord currentCell; // current location of the player
+    CellCord startCell;   // player's starting location in starting area
+    Direction startDir;   // player's direction when in starting area
+    Direction dir;
+    int movementPoints;
+    int throwsCount;
+    PlayerStatus status;
+    int throwsLeftInStatus;
+} Player;
+
+typedef struct
+{
+    char player;
+    int steps;
+    Direction dir;
+    CellCord currentCell;
+    int movementPoints;
+    char msgBuffer[500];
+} Move;
+
 // ----------------------------------------GLOBAL VARIABLES---------------------------------------
+// constants
+extern const CellCord BawanaEntry;
+
+extern const CellCord specialCells[7];
+
+extern const char *stringDirections[];
+
+extern const char *stringBawanaEffects[];
+
+// arrays
 extern struct Cell maze[FLOORS][WIDTH][LENGTH];
+extern Player players[NO_PLAYERS];
 
 extern CellCord Flag;
 
+// array pointers
 extern struct Stair *stairs;
 extern struct Pole *poles;
 extern struct Wall *walls;
 extern struct BawanaCell *bawanaCells;
 
-extern int stairsCount;
-extern int polesCount;
-extern int wallsCount;
-extern int bawanaCellCount;
+// counters
+extern int no_Stairs;
+extern int no_Poles;
+extern int no_Walls;
+extern int no_BawanaCells;
 
 
+extern int gameRound;
 #endif

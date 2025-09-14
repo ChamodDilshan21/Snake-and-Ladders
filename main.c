@@ -32,112 +32,92 @@ int no_BawanaCells = 0;
 
 int gameRound = 0;
 
-void printFloors()
+// ---------------------------------------CHECK IS FLAG REACHERABLE---------------------------------------
+bool isFlagReachable(CellCord start)
 {
-    for (int f = 0; f < FLOORS; f++)
+    // BFS queue: store CellCord
+    CellCord queue[1000]; // Fixed size for simplicity; adjust if needed
+    int front = 0, rear = 0;
+    bool visited[FLOORS][WIDTH][LENGTH] = {false};
+
+    queue[rear++] = start;
+    visited[start.floor][start.width][start.length] = true;
+
+    while (front < rear)
     {
-        printf("\n\n======================================= Floor %d =======================================\n\n", f);
-        for (int w = 0; w < WIDTH; w++)
+        CellCord curr = queue[front++];
+
+        if (isSameCord(curr, Flag))
         {
-            for (int l = 0; l < LENGTH; l++)
+            return true; // Flag reached
+        }
+
+        // Check neighbors: N, E, S, W
+        Direction dirs[] = {NORTH, EAST, SOUTH, WEST};
+        for (int d = 0; d < 4; d++)
+        {
+            CellCord next = getNextCellCoord(curr, dirs[d]);
+            if (isValidCordinates(next) && !isBlockedCell(next) && !visited[next.floor][next.width][next.length])
             {
-                char symbol1 = ' ';
-                switch (maze[f][w][l].cellType)
-                {
-                case ACTIVE_CELL:
-                    symbol1 = 'A';
-                    break;
-                case STAIR_CELL:
-                    symbol1 = 'S';
-                    break;
-                case POLE_CELL:
-                    symbol1 = 'P';
-                    break;
-                case WALL_CELL:
-                    symbol1 = 'W';
-                    break;
-                case FLAG_CELL:
-                    symbol1 = 'F';
-                    break;
-                case STARTING_AREA_CELL:
-                    symbol1 = '*';
-                    break;
-                case BAWANA_CELL:
-                    symbol1 = 'B';
-                    break;
-                case BAWANA_ENTRY:
-                    symbol1 = 'E';
-                    break;
-                case EMPTY_CELL:
-                    symbol1 = 'x';
-                    break;
-                }
-
-                char symbol2 = ' ';
-                int mp = 0;
-                if (maze[f][w][l].cellType == BAWANA_CELL)
-                {
-                    switch (bawanaCells[maze[f][w][l].cellTypeId].type)
-                    {
-                    case POISONED_CELL:
-                        symbol2 = 'p';
-                        break;
-
-                    case DISORIENTED_CELL:
-                        symbol2 = 'd';
-                        break;
-
-                    case TRIGGERED_CELL:
-                        symbol2 = 't';
-                        break;
-
-                    case HAPPY_CELL:
-                        symbol2 = 'h';
-                        break;
-
-                    case RANDOM_CELL:
-                        symbol2 = 'r';
-                        break;
-                    }
-                    mp = bawanaCells[maze[f][w][l].cellTypeId].movementPoints;
-                }
-                else
-                {
-                    switch (maze[f][w][l].effectType)
-                    {
-                    case MP_NONE:
-                        symbol2 = 'n';
-                        break;
-                    case MP_ADD:
-                        symbol2 = '+';
-                        break;
-                    case MP_CONSUME:
-                        symbol2 = '-';
-                        break;
-                    case MP_MULTIPLY:
-                        symbol2 = '*';
-                        break;
-                    }
-                    mp = maze[f][w][l].effectValue;
-                }
-
-                printf("%c%c%d ", symbol1, symbol2, mp);
+                visited[next.floor][next.width][next.length] = true;
+                queue[rear++] = next;
             }
-            printf("\n");
+        }
+
+        // Handle stairs if on a stair cell
+        struct Cell cell = maze[curr.floor][curr.width][curr.length];
+        if (cell.cellType == STAIR_CELL)
+        {
+            CellCord stairEnd = curr; // Temp
+            if (takeStair(&stairEnd, cell.cellTypeId))
+            { // Reuse takeStair to get end
+                if (!visited[stairEnd.floor][stairEnd.width][stairEnd.length])
+                {
+                    visited[stairEnd.floor][stairEnd.width][stairEnd.length] = true;
+                    queue[rear++] = stairEnd;
+                }
+            }
+        }
+
+        // Handle poles if on a pole cell (down only, as per game logic)
+        if (cell.cellType == POLE_CELL)
+        {
+            CellCord poleStart = curr; // Temp
+            if (takePole(&poleStart, cell.cellTypeId))
+            {
+                if (!visited[poleStart.floor][poleStart.width][poleStart.length])
+                {
+                    visited[poleStart.floor][poleStart.width][poleStart.length] = true;
+                    queue[rear++] = poleStart;
+                }
+            }
         }
     }
+    return false; // Flag not reachable
 }
 
-// --------------------MAIN--------------------
+// ---------------------------------------CHECK IS FLAG REACHERABLE---------------------------------------
 int main()
 {
+    // write errors into log.txt file
     freopen("log.txt", "a", stderr);
+    fprintf(stderr, "\n---------------------------------------------------------------------------------------------------------------------\n\n");
+    fflush(stderr);
 
-    printf("\n   ___   _   __  __ ___   ___ ___ ___ ___ _  _ ___ _ \r\n  / __| /_\\ |  \\/  | __| | _ ) __/ __|_ _| \\| / __| |\r\n | (_ |/ _ \\| |\\/| | _|  | _ \\ _| (_ || || .` \\__ \\_|\r\n  \\___/_/ \\_\\_|  |_|___| |___/___\\___|___|_|\\_|___(_)\r\n                                                     \n");
+    // game start here
+    printf("\n\t\t   ___   _   __  __ ___   ___ ___ ___ ___ _  _ ___ _ \r\n\t\t  / __| /_\\ |  \\/  | __| | _ ) __/ __|_ _| \\| / __| |\r\n\t\t | (_ |/ _ \\| |\\/| | _|  | _ \\ _| (_ || || .` \\__ \\_|\r\n\t\t  \\___/_/ \\_\\_|  |_|___| |___/___\\___|___|_|\\_|___(_)\r\n                                                     \n");
+
+    loadSeed();
     intializeMaze();
+    for (int i = 0; i < NO_PLAYERS; i++)
+    {
+        if (!isFlagReachable(players[i].startCell))
+        { // Check from starting cells
+            printf("\nError: Flag is unreachable from player %c's starting position. Quitting Game....\n", players[i].name);
+            exit(1);
+        }
+    }
     initPlayers();
-
-    printFloors();
 
     while (true)
     {
@@ -146,7 +126,6 @@ int main()
         for (int i = 0; i < NO_PLAYERS; i++)
         {
             printf("\n----%c's turn:----\n", players[i].name);
-            // printf("----------- \n");
             playerTurn(&players[i]);
         }
 
@@ -156,18 +135,7 @@ int main()
             printf("\n \\\\---Five rounds has passed. The direction of the stairs change randomly.---\\\\ \n");
             changeStairDirection();
         }
-
-        // if (gameRound == 100)
-        // {
-        //     exit(0);
-        // }
     }
-
-    // \t -> skip 8 chars
-    // printf("\n \t\tRound %d \n", gameRound + 1);
-    // printf(" \t===================== \n\n");
-    // printf("%c's turn:\n", players[0].name);
-    // printf("----------- \n\n");
 
     return 0;
 }

@@ -22,25 +22,30 @@ bool isSameCord(CellCord c1, CellCord c2)
     return c1.floor == c2.floor && c1.width == c2.width && c1.length == c2.length;
 }
 
-// check if cell doesn't have any object currently
+bool isSpecialCell(CellCord cell)
+{
+    for (int i = 0; i < sizeof(specialCells) / sizeof(specialCells[0]); i++)
+    {
+        if (isSameCord(cell, specialCells[i]))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+// check if cell is only a game cell and no object in it or is not a special cell(player start, player entry, bawana entry)
 bool isVacantCell(CellCord cell)
 {
-    if (maze[cell.floor][cell.width][cell.length].cellType == STARTING_AREA_CELL)
-    {
-        for (int i = 0; i < sizeof(specialCells) / sizeof(specialCells[0]); i++)
-        {
-            if (isSameCord(cell, specialCells[i]))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-    return maze[cell.floor][cell.width][cell.length].cellType == ACTIVE_CELL;
+    return isValidCordinates(cell) && maze[cell.floor][cell.width][cell.length].cellType == ACTIVE_CELL;
 }
 
 // check if cell is within booundires and vacant
-bool isValidCell(CellCord cell) { return isValidCordinates(cell) && isVacantCell(cell); }
+bool isValidCell(CellCord cell)
+{
+    return isValidCordinates(cell) && !isSpecialCell(cell) &&
+           (maze[cell.floor][cell.width][cell.length].cellType == ACTIVE_CELL || maze[cell.floor][cell.width][cell.length].cellType == STARTING_AREA_CELL);
+}
 
 // check for walls and boundries
 bool isBlockedCell(CellCord cell)
@@ -51,29 +56,102 @@ bool isBlockedCell(CellCord cell)
 
 bool isStartingAreaCell(CellCord cell) { return maze[cell.floor][cell.width][cell.length].cellType == STARTING_AREA_CELL; }
 
-// check if stair is valid
-bool isValidStair(struct Stair stair)
+// check if a stair is valid
+bool isValidStair(struct Stair stair, int line, bool logError)
 {
     CellCord startCell = {stair.startFloor, stair.startBlockWidth, stair.startBlockLength};
     CellCord endCell = {stair.endFloor, stair.endBlockWidth, stair.endBlockLength};
 
-    return isValidCell(startCell) &&
-           isValidCell(endCell) &&
-           (startCell.floor + 1 == endCell.floor) && // stair should be from a lower floor to a upper floor and cannot go through floors
-           !(startCell.width == endCell.width && startCell.length == endCell.length); // stairs cannot be vertical
+    if (!isValidCell(startCell))
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of stairs.txt: Invalid start cell [%d,%d,%d].\n",
+                    line, stair.startFloor, stair.startBlockWidth, stair.startBlockLength);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    if (!isValidCell(endCell))
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of stairs.txt: Invalid end cell [%d,%d,%d].\n",
+                    line, stair.endFloor, stair.endBlockWidth, stair.endBlockLength);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    if (startCell.floor + 1 != endCell.floor)
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of stairs.txt: Stair must connect consecutive floors (got %d -> %d).\n",
+                    line, startCell.floor, endCell.floor);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    if (startCell.width == endCell.width && startCell.length == endCell.length)
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of stairs.txt: Stair cannot be vertical.\n", line);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    return true;
 }
 
 // check if pole is valid
-bool isValidPole(struct Pole pole)
+bool isValidPole(struct Pole pole, int line, bool logError)
 {
     CellCord startCell = {pole.startFloor, pole.widthCell, pole.lengthCell};
     CellCord endCell = {pole.endFloor, pole.widthCell, pole.lengthCell};
 
-    return isValidCell(startCell) && isValidCell(endCell) && (startCell.floor < endCell.floor);
+    if (!isValidCell(startCell))
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of poles.txt: Invalid start cell [%d,%d,%d].\n",
+                    line, pole.startFloor, pole.widthCell, pole.lengthCell);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    if (!isValidCell(endCell))
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of poles.txt: Invalid end cell [%d,%d,%d].\n",
+                    line, pole.endFloor, pole.widthCell, pole.lengthCell);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    if (startCell.floor >= endCell.floor)
+    {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of poles.txt: Pole must start below and end above (got %d -> %d).\n",
+                    line, startCell.floor, endCell.floor);
+            fflush(stderr);
+        }
+        return false;
+    }
+
+    return true;
 }
 
-// check if stair is valid
-bool isValidWall(struct Wall wall)
+// check if wall is valid
+bool isValidWall(struct Wall wall, int line, bool logError)
 {
     if (!isValidFloor(wall.floor) ||
         !isValidWidth(wall.startBlockWidth) ||
@@ -81,15 +159,24 @@ bool isValidWall(struct Wall wall)
         !isValidLength(wall.startBlockLength) ||
         !isValidLength(wall.endBlockLength))
     {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of walls.txt: has out-of-bound coordinates.\n", line);
+            fflush(stderr);
+        }
         return false;
     }
 
-    bool isVertical = wall.startBlockLength == wall.endBlockLength; // vertical wall
-    bool isHorizontal = wall.startBlockWidth == wall.endBlockWidth; // horizontal wall
+    bool isVertical = (wall.startBlockLength == wall.endBlockLength); // vertical wall
+    bool isHorizontal = (wall.startBlockWidth == wall.endBlockWidth); // horizontal wall
 
-    // walls cannot diagonal
     if (!isVertical && !isHorizontal)
     {
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of walls.txt: Walls can not be diagonal.\n", line);
+            fflush(stderr);
+        }
         return false;
     }
 
@@ -100,13 +187,16 @@ bool isValidWall(struct Wall wall)
     if (isHorizontal)
     {
         int l = wall.startBlockLength < wall.endBlockLength ? wall.startBlockLength : wall.endBlockLength;
-
-        //check wall is contiguous and do not have objects(stairs/poles/flag) in middle
-        for (int i = 0; i <= wallLength; i++)
+        for (int i = 0; i < wallLength; i++)
         {
             CellCord cell = {wall.floor, wall.startBlockWidth, l++};
             if (maze[cell.floor][cell.width][cell.length].cellType != ACTIVE_CELL)
             {
+                if (logError)
+                {
+                    fprintf(stderr, "Line %d of walls.txt: Wall overlap with special cell or object.\n", line);
+                    fflush(stderr);
+                }
                 return false;
             }
         }
@@ -114,51 +204,73 @@ bool isValidWall(struct Wall wall)
     else if (isVertical)
     {
         int w = wall.startBlockWidth < wall.endBlockWidth ? wall.startBlockWidth : wall.endBlockWidth;
-
-        //check wall is contiguous and do not have objects(stairs/poles/flag) in middle
-        for (int i = 0; i <= wallWidth; i++)
+        for (int i = 0; i < wallWidth; i++)
         {
             CellCord cell = {wall.floor, w++, wall.startBlockLength};
             if (maze[cell.floor][cell.width][cell.length].cellType != ACTIVE_CELL)
             {
+                if (logError)
+                {
+                    fprintf(stderr, "Line %d of walls.txt: Wall overlap with special cell or object.\n", line);
+                    fflush(stderr);
+                }
                 return false;
             }
         }
     }
 
-    // check if wall is a entire barrier (from one end to other)
+    // prevent full barrier walls depending on floor-specific rules
     if (wall.floor == 1)
     {
-        if (wall.startBlockWidth < 6)
+        if (wall.startBlockWidth < 6 && isHorizontal && wallLength >= 8)
         {
-            if (isHorizontal)
+            if (logError)
             {
-                return wallLength < 8;
+                fprintf(stderr, "Line %d of walls.txt: Wall is a full horizontal barrier on floor 1.\n", line);
+                fflush(stderr);
             }
+            return false;
         }
-        else if (wall.startBlockLength > 7 && wall.startBlockLength < 17)
+        if (wall.startBlockLength > 7 && wall.startBlockLength < 17 && isVertical && wallWidth >= 4)
         {
-            if (isVertical)
+            if (logError)
             {
-                return wallWidth < 4;
+                fprintf(stderr, "Line %d of walls.txt: Wall is a full vertical barrier on floor 1.\n", line);
+                fflush(stderr);
             }
+            return false;
         }
     }
     else if (wall.floor == 2)
     {
-        if (isHorizontal)
+        if (isHorizontal && wallLength >= 9)
         {
-            return wallLength < 9;
+            if (logError)
+            {
+                fprintf(stderr, "Line %d of walls.txt: Wall is a full horizontal barrier on floor 2.\n", line);
+                fflush(stderr);
+            }
+            return false;
         }
     }
 
-    if (isHorizontal)
+    if (isHorizontal && wallLength >= LENGTH)
     {
-        return wallLength < LENGTH;
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of walls.txt: Wall is the entire length of the maze.\n", line);
+            fflush(stderr);
+        }
+        return false;
     }
-    else if (isVertical)
+    else if (isVertical && wallWidth >= WIDTH)
     {
-        return wallWidth < WIDTH;
+        if (logError)
+        {
+            fprintf(stderr, "Line %d of walls.txt: Wall is the entire width of the maze.\n", line);
+            fflush(stderr);
+        }
+        return false;
     }
 
     return true;
@@ -166,13 +278,13 @@ bool isValidWall(struct Wall wall)
 
 // ---------------------------------------GAME SUPPORT---------------------------------------
 
-//roll movement dice
+// roll movement dice
 int rollMovementDice()
 {
     return (rand() % 6) + 1;
 }
 
-//roll direction dice
+// roll direction dice
 Direction rollDirectionDice()
 {
     int face = rand() % 6 + 1;
@@ -250,7 +362,7 @@ CellCord getNextCellCoord(CellCord current, Direction dir)
 struct Cell getNextCell(CellCord nextCell) { return maze[nextCell.floor][nextCell.width][nextCell.length]; }
 
 // get a random bawana cell
-struct BawanaCell getRandomBawanaCell() { return bawanaCells[rand() % 12]; }
+struct BawanaCell getRandomBawanaCell() { return bawanaCells[rand() % no_BawanaCells]; }
 
 // check if player has captured a another
 void hasCapturedPlayer(char capturedBy, CellCord cell)
@@ -262,7 +374,6 @@ void hasCapturedPlayer(char capturedBy, CellCord cell)
             players[i].currentCell = players[i].startCell;
             printf("%c has been captured by %c at %s. Player %c has send to his starting location in starting area.\n",
                    players[i].name, capturedBy, cordToString(cell), players[i].name);
-            return;
         }
     }
 }

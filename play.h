@@ -68,35 +68,34 @@ bool takeStair(CellCord *c, int index)
     return true;
 }
 
-void takePole(CellCord *c, int index)
+bool takePole(CellCord *c, int index)
 {
     CellCord poleStart = {poles[index].startFloor, poles[index].widthCell, poles[index].lengthCell};
     CellCord poleEnd = {poles[index].endFloor, poles[index].widthCell, poles[index].lengthCell};
 
-    if (c->floor <= poleEnd.floor)
+    if (c->floor > poleStart.floor && c->floor <= poleEnd.floor)
     {
         *c = poleStart;
+        return true;
     }
+    return false;
 }
 
 // calc movement ponts for a single step
-int calcMovementPoints(CellCord cell, int mp)
+void calcMovementPoints(CellCord cell, Move *move)
 {
     switch (maze[cell.floor][cell.width][cell.length].effectType)
     {
     case MP_CONSUME:
-        return mp - maze[cell.floor][cell.width][cell.length].effectValue;
+        move->movementPoints -= maze[cell.floor][cell.width][cell.length].effectValue;
         break;
 
     case MP_ADD:
-        return mp + maze[cell.floor][cell.width][cell.length].effectValue;
+        move->movementPoints += maze[cell.floor][cell.width][cell.length].effectValue;
         break;
 
     case MP_MULTIPLY:
-        return mp * maze[cell.floor][cell.width][cell.length].effectValue;
-
-    default:
-        return mp;
+        move->mpMultiplyer *= maze[cell.floor][cell.width][cell.length].effectValue;
     }
 }
 
@@ -111,40 +110,35 @@ void applyBawanaEffect(Player *p, struct BawanaCell *bawanaCell)
         p->status = POISONED;
         p->throwsLeftInStatus = 3;
         printf("%c eats from Bawana and have a bad case of food poisoning. Will need three rounds to recover.\n", p->name);
-        break;
+        return;
 
     case DISORIENTED_CELL:
-        p->currentCell = BawanaEntry;
-        p->movementPoints = bawanaCell->movementPoints;
         p->status = DISORIENTED;
         p->throwsLeftInStatus = 4;
         printf("%c eats from Bawana and is disoriented and is placed at the entrance of Bawana with 50 movement points.\n", p->name);
         break;
 
     case TRIGGERED_CELL:
-        p->currentCell = BawanaEntry;
-        p->movementPoints = bawanaCell->movementPoints;
         p->status = TRIGGERED;
         p->throwsLeftInStatus = 4;
         printf("%c eats from Bawana and is triggered due to bad quality of food. %c is placed at the entrance of Bawana with 50 movement points.\n", p->name, p->name);
         break;
 
     case HAPPY_CELL:
-        p->currentCell = BawanaEntry;
-        p->movementPoints = bawanaCell->movementPoints;
         p->status = IN_MAZE;
         p->throwsLeftInStatus = 0;
         printf("%c eats from Bawana and is happy. %c is placed at the entrance of Bawana with 200 movement points.\n", p->name, p->name);
         break;
 
     case RANDOM_CELL:
-        p->currentCell = BawanaEntry;
-        p->movementPoints = bawanaCell->movementPoints;
         p->status = IN_MAZE;
         p->throwsLeftInStatus = 0;
-        printf("%c eats from Bawana and earns %d movement points and is placed at the entrance of Bawana.\n", p->name, p->movementPoints);
+        printf("%c eats from Bawana and earns %d movement points and is placed at the entrance of Bawana.\n", p->name, bawanaCell->movementPoints);
         break;
     }
+    p->currentCell = BawanaEntry;
+    p->movementPoints = bawanaCell->movementPoints;
+    hasCapturedPlayer(p->name, BawanaEntry);
 }
 
 // ----------------------------------------PLAYER MOVEMENT IMPLIMETATION---------------------------------------
@@ -163,14 +157,11 @@ void movePlayer(Move *move, int *offset)
 
     CellCord nextCellCord = getNextCellCoord(move->currentCell, move->dir);
     struct Cell nextCell = getNextCell(nextCellCord);
-    move->movementPoints = calcMovementPoints(nextCellCord, move->movementPoints);
 
     if (nextCell.cellType == STAIR_CELL) // check if player have to take a stair
     {
         if (takeStair(&nextCellCord, nextCell.cellTypeId))
         {
-            move->movementPoints = calcMovementPoints(nextCellCord, move->movementPoints);
-
             bytes_written = snprintf(move->msgBuffer + *offset, sizeof(move->msgBuffer) - *offset, "%c lands on %s which is a stair cell. %c takes the stairs and now placed at %s.\n",
                                      move->player, cordToString(move->currentCell), move->player, cordToString(nextCellCord)); // add msg to msgBuffer
 
@@ -179,13 +170,13 @@ void movePlayer(Move *move, int *offset)
     }
     else if (nextCell.cellType == POLE_CELL) // check if player have to take a pole
     {
-        takePole(&nextCellCord, nextCell.cellTypeId);
-        move->movementPoints = calcMovementPoints(nextCellCord, move->movementPoints);
+        if (takePole(&nextCellCord, nextCell.cellTypeId))
+        {
+            bytes_written = snprintf(move->msgBuffer + *offset, sizeof(move->msgBuffer) - *offset, "%c lands on %s which is a pole cell. %c slides down and now placed at %s.\n",
+                                     move->player, cordToString(move->currentCell), move->player, cordToString(nextCellCord)); // add msg to msgBuffer
 
-        bytes_written = snprintf(move->msgBuffer + *offset, sizeof(move->msgBuffer) - *offset, "%c lands on %s which is a pole cell. %c slides down and now placed at %s.\n",
-                                 move->player, cordToString(move->currentCell), move->player, cordToString(nextCellCord)); // add msg to msgBuffer
-
-        *offset += bytes_written;
+            *offset += bytes_written;
+        }
     }
     else if (nextCell.cellType == FLAG_CELL) // check if player has reached the flag
     {
@@ -194,6 +185,7 @@ void movePlayer(Move *move, int *offset)
         exit(0); // successfully complete the game.
     }
     move->currentCell = nextCellCord; // move player to next cell
+    calcMovementPoints(nextCellCord, move);
 }
 
 // check and do the players move
@@ -229,7 +221,7 @@ void playerTurn(Player *player)
         else
         {
             struct BawanaCell bawana = getRandomBawanaCell();
-            printf("%c is now fit to proceed from the food poisoning episode and now placed on a %s and the effects take place.\n",
+            printf("%c is now fit to proceed from the food poisoning episode and now placed on a %s cell and the effects take place.\n",
                    player->name, stringBawanaEffects[bawana.type]);
             applyBawanaEffect(player, &bawana);
         }
@@ -262,10 +254,15 @@ void playerTurn(Player *player)
         if (player->throwsLeftInStatus > 0)
         {
             dir = rollDirectionDice();
-            printf("%c rolls and %d on the movement dice and is disoriented and move in the %s.\n", player->name, movementDice, stringDirections[dir]);
+            printf("%c rolls and %d on the movement dice and is disoriented and move in the %s.\n", player->name, movementDice, dir == NO_CHANGE ? stringDirections[player->dir] : stringDirections[dir]);
+            player->throwsLeftInStatus--;
         }
-        printf("%c has recovered from disorientation.\n", player->name);
-        move = (Move){player->name, movementDice, dir, player->currentCell, 0, ""};
+        else
+        {
+            printf("%c has recovered from disorientation.\n", player->name);
+            player->status = IN_MAZE;
+        }
+        move = (Move){player->name, movementDice, dir, player->currentCell, 0, 1, ""};
     }
     else if (player->status == TRIGGERED)
     {
@@ -273,9 +270,14 @@ void playerTurn(Player *player)
         {
             printf("%c is triggered and rolls and %d on the movement dice and move in the %s and moving %d cells.\n", player->name, movementDice, stringDirections[dir], movementDice * 2);
             movementDice *= 2;
+            player->throwsLeftInStatus--;
         }
-        printf("%c has recovered from triggered status.\n", player->name);
-        move = (Move){player->name, movementDice, dir, player->currentCell, 0, ""};
+        else
+        {
+            printf("%c has recovered from triggered status.\n", player->name);
+            player->status = IN_MAZE;
+        }
+        move = (Move){player->name, movementDice, dir, player->currentCell, 0, 1, ""};
     }
     else if (player->status == STARTING_AREA)
     {
@@ -283,7 +285,7 @@ void playerTurn(Player *player)
         {
             player->status = IN_MAZE;
             printf("%c is at the starting area and rolls 6 on the movement dice and is placed on his entry cell of the maze.\n", player->name);
-            move = (Move){player->name, 1, dir, player->currentCell, 0, ""};
+            move = (Move){player->name, 1, dir, player->currentCell, 0, 1, ""};
         }
         else
         {
@@ -293,37 +295,15 @@ void playerTurn(Player *player)
     }
     else
     {
-        move = (Move){player->name, movementDice, dir, player->currentCell, 0, ""};
+        move = (Move){player->name, movementDice, dir, player->currentCell, 0, 1, ""};
     }
-
-    // check player status
-    // poisioned -> how many turns left? if timesup place randomly in bawana ----------> DONE
-    // triggered -> roll dice but multiply steps by 2----------> DONE
-    // happy -> nothing special----------> DONE
-    // disoriented -> how many turns left? if timesup set status-in_maze else: random movement (steps+direction)----------> DONE
-    // in_maze -> normal movement----------> DONE
-    // starting_area -> should land 6 to be in_maze----------> DONE
-
-    // movement dice roll everytime----------> DONE
-    // direction dice - every 4 time----------> DONE
-
-    // check movement possible? ----------> DONE
-    // if possible take move ----------> DONE
-    // take stair, poles ----------> DONE
-    // after taking move check whether mp == 0 ? send to bawana ----------> DONE
-    //  end of move check any caputres happen ----------> DONE
-    //  if yes send captured player to starting area ----------> DONE
-    // check player is in starting area again ----------> DONE
-    // deduct 2 mp for blocked move ----------> DONE
-    // increase throwCount of player by 1 ----------> DONE
-    // print final message
 
     // move player if possible
     if (isPlayerMoved(&move))
     {
         // update player's movement points and current location
         player->currentCell = move.currentCell;
-        player->movementPoints += move.movementPoints;
+        player->movementPoints += move.movementPoints * move.mpMultiplyer;
 
         printf("%s", move.msgBuffer);
 
@@ -332,8 +312,16 @@ void playerTurn(Player *player)
 
         if (isDirectionDiceRoll)
         {
-            printf("%c rolls and %d on the movement dice and %s on the direction dice, changes direction to %s and moves %d cells and is now at %s.\n",
-                   player->name, movementDice, stringDirections[dir], stringDirections[dir], move.steps, cordToString(player->currentCell));
+            if (dir == NO_CHANGE)
+            {
+                printf("%c rolls and %d on the movement dice and %s on the direction dice. %c's directions stays same and moves %d cells %s and is now at %s.\n",
+                       player->name, movementDice, stringDirections[dir], player->name, move.steps, stringDirections[player->dir], cordToString(player->currentCell));
+            }
+            else
+            {
+                printf("%c rolls and %d on the movement dice and %s on the direction dice, changes direction to %s and moves %d cells and is now at %s.\n",
+                       player->name, movementDice, stringDirections[dir], stringDirections[dir], move.steps, cordToString(player->currentCell));
+            }
         }
         else
         {
@@ -365,8 +353,16 @@ void playerTurn(Player *player)
     {
         if (isDirectionDiceRoll)
         {
-            printf("%c rolls and %d on the movement dice and %s on the direction dice, direction changed to %s but cannot move. Player remains at %s.\n",
-                   player->name, movementDice, stringDirections[dir], stringDirections[dir], cordToString(player->currentCell));
+            if (dir == NO_CHANGE)
+            {
+                printf("%c rolls and %d on the movement dice and %s on the direction dice, direction remains %s and cannot move. Player remains at %s.\n",
+                       player->name, movementDice, stringDirections[dir], stringDirections[player->dir], cordToString(player->currentCell));
+            }
+            else
+            {
+                printf("%c rolls and %d on the movement dice and %s on the direction dice, direction changed to %s but cannot move. Player remains at %s.\n",
+                       player->name, movementDice, stringDirections[dir], stringDirections[dir], cordToString(player->currentCell));
+            }
         }
         else
         {

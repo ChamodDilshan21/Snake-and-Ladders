@@ -140,7 +140,8 @@ typedef struct
     Direction dir;
     CellCord currentCell;
     int movementPoints;
-    char msgBuffer[500];
+    int mpMultiplyer;
+    char msgBuffer[600];
 } Move;
 
 // ----------------------------------------GLOBAL VARIABLES---------------------------------------
@@ -170,7 +171,6 @@ extern int no_Stairs;
 extern int no_Poles;
 extern int no_Walls;
 extern int no_BawanaCells;
-
 
 extern int gameRound;
 #endif
